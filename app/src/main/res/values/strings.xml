@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Dynamic Island</string>
+    <string name="grant_overlay">1. Allow display over other apps</string>
+    <string name="grant_notifications">2. Allow notification access</string>
+    <string name="start_island">Start Island</string>
+    <string name="stop_island">Stop Island</string>
+    <string name="status_ready">Ready to start</string>
+    <string name="status_running">Island is running</string>
+    <string name="status_missing_overlay">Overlay permission required</string>
+    <string name="status_missing_listener">Notification access required</string>
+</resources>
