@@ -1,0 +1,9 @@
+<resources>
+    <color name="island_black">#FF000000</color>
+    <color name="island_text">#FFFFFFFF</color>
+    <color name="island_accent">#FF0A84FF</color>
+    <color name="bg_dark">#FF121212</color>
+    <color name="bg_card">#FF1E1E1E</color>
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FFAAAAAA</color>
+</resources>
