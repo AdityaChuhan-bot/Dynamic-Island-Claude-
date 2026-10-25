@@ -20,6 +20,9 @@ android {
             minifyEnabled false
         }
         release {
+            // Signed with the standard Android debug key for easy personal sideloading.
+            // Use a private release keystore before publishing to an app store.
+            signingConfig signingConfigs.debug
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
