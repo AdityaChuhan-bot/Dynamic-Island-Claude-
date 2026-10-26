@@ -33,8 +33,45 @@ data class IslandContent(
     val appName: String = "",
     val intent: PendingIntent? = null,
     val notificationKey: String? = null,
-    val timestamp: Long = System.currentTimeMillis()
-)
+    val timestamp: Long = System.currentTimeMillis(),
+    val targetEndTime: Long? = null,
+    val totalDurationSeconds: Long? = null,
+    val isPaused: Boolean = false
+) {
+    fun getRemainingSeconds(): Long {
+        if (targetEndTime == null) return 0L
+        val diff = targetEndTime - System.currentTimeMillis()
+        return (diff / 1000L).coerceAtLeast(0L)
+    }
+
+    fun getFormattedRemainingTime(): String {
+        if (targetEndTime == null) {
+            return if (subtitle.isNotBlank() && (subtitle.contains(":") || subtitle.any { it.isDigit() })) {
+                subtitle
+            } else {
+                "00:00"
+            }
+        }
+        val remaining = getRemainingSeconds()
+        val hours = remaining / 3600L
+        val minutes = (remaining % 3600L) / 60L
+        val seconds = remaining % 60L
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
+        }
+    }
+
+    fun getDynamicProgress(): Float? {
+        if (targetEndTime != null && totalDurationSeconds != null && totalDurationSeconds > 0L) {
+            val remaining = getRemainingSeconds().toFloat()
+            val total = totalDurationSeconds.toFloat()
+            return (remaining / total).coerceIn(0f, 1f)
+        }
+        return progress
+    }
+}
 
 object IslandRepository {
     private val _content = MutableStateFlow(IslandContent())

@@ -136,16 +136,29 @@ class MainActivity : AppCompatActivity() {
 
         btnSimulateTimer.setOnClickListener {
             ensureIslandRunning()
+            val targetTime = System.currentTimeMillis() + (4 * 60 + 30) * 1000L
+            val sampleIntent = packageManager.getLaunchIntentForPackage("com.google.android.deskclock")
+                ?: Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                this,
+                101,
+                sampleIntent,
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            )
             IslandRepository.update(
                 IslandContent(
                     type = IslandContentType.TIMER,
                     title = "Pizza in Oven",
-                    subtitle = "04:32 remaining",
+                    subtitle = "Baking • Kitchen",
                     isOngoing = true,
-                    progress = 0.72f,
                     packageName = "com.google.android.deskclock",
-                    appName = "Clock"
-                )
+                    appName = "Clock",
+                    intent = pendingIntent,
+                    notificationKey = "mock_key_timer_789",
+                    targetEndTime = targetTime,
+                    totalDurationSeconds = 300L
+                ),
+                autoExpand = true
             )
         }
 

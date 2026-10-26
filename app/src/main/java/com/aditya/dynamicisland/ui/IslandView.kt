@@ -25,7 +25,8 @@ import kotlin.math.min
 
 /**
  * Spring-animated Dynamic Island view using Android DynamicAnimation (SpringAnimation).
- * Handles fluid physical expansion, contraction, and touch event handling to:
+ * Handles fluid physical expansion, contraction, live countdown timers, and touch events:
+ * - Live second-by-second countdown timer in compact and expanded states.
  * - Media playback controls (Previous, Play/Pause, Next) with real-time transport actions.
  * - Tap to open associated application via PendingIntent or package launcher.
  * - Tap dismiss button (✕) or swipe up to dismiss notifications.
@@ -50,10 +51,14 @@ class IslandView @JvmOverloads constructor(
     // Dimensions for states
     private val collapsedW get() = dp(120f)
     private val collapsedH get() = dp(36f)
-    private val compactW get() = dp(200f)
+    private val compactW get() = if (content.type == IslandContentType.TIMER) dp(210f) else dp(200f)
     private val compactH get() = dp(40f)
     private val expandedW get() = if (width > 0) min(width.toFloat(), dp(340f)) else dp(340f)
-    private val expandedH get() = if (content.type == IslandContentType.MEDIA) dp(142f) else dp(122f)
+    private val expandedH get() = when (content.type) {
+        IslandContentType.MEDIA -> dp(142f)
+        IslandContentType.TIMER -> dp(134f)
+        else -> dp(122f)
+    }
 
     var state = IslandState.COLLAPSED
         private set
@@ -75,6 +80,19 @@ class IslandView @JvmOverloads constructor(
         strokeCap = Paint.Cap.ROUND
     }
 
+    // Timer paints
+    private val timerDigitsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = dp(32f)
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    private val timerCompactPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#FF9500")
+        textSize = dp(12.5f)
+        isFakeBoldText = true
+    }
+
     // Media controls paints & paths
     private val playPauseBtnBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val playPauseIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.FILL }
@@ -94,6 +112,16 @@ class IslandView @JvmOverloads constructor(
     private var onOutsideTouchListener: (() -> Unit)? = null
     private var onStateChangeListener: ((IslandState) -> Unit)? = null
     private var autoCollapseRunnable: Runnable? = null
+
+    // Live countdown ticker runnable
+    private val timerTicker = object : Runnable {
+        override fun run() {
+            if (content.type == IslandContentType.TIMER) {
+                invalidate()
+                postDelayed(this, 1000L)
+            }
+        }
+    }
 
     fun setOnOutsideTouchListener(listener: () -> Unit) {
         onOutsideTouchListener = listener
@@ -236,7 +264,17 @@ class IslandView @JvmOverloads constructor(
     }
 
     fun updateContent(newContent: IslandContent) {
+        val wasTimer = content.type == IslandContentType.TIMER
         content = newContent
+
+        // Start or stop live countdown ticker
+        if (newContent.type == IslandContentType.TIMER) {
+            removeCallbacks(timerTicker)
+            postDelayed(timerTicker, 1000L)
+        } else if (wasTimer) {
+            removeCallbacks(timerTicker)
+        }
+
         val targetState = when {
             newContent.type == IslandContentType.NONE -> IslandState.COLLAPSED
             state == IslandState.EXPANDED -> IslandState.EXPANDED
@@ -498,7 +536,17 @@ class IslandView @JvmOverloads constructor(
         canvas.drawCircle(rect.left + pad + dot, rect.centerY(), dot, accent)
 
         val x = rect.left + pad * 2 + dot * 2
-        val maxAvailableWidth = (rect.width() - pad * 3 - dot * 2 - dp(28f)).coerceAtLeast(0f)
+        var maxAvailableWidth = (rect.width() - pad * 3 - dot * 2 - dp(28f)).coerceAtLeast(0f)
+
+        // In COMPACT mode for Timer: show live countdown on the right
+        if (state == IslandState.COMPACT && content.type == IslandContentType.TIMER) {
+            val countdownStr = content.getFormattedRemainingTime()
+            val timeW = timerCompactPaint.measureText(countdownStr)
+            val timeX = rect.right - pad - timeW
+            timerCompactPaint.alpha = (curCompactAlpha * 255).toInt().coerceIn(0, 255)
+            canvas.drawText(countdownStr, timeX, rect.centerY() + text.textSize / 3f, timerCompactPaint)
+            maxAvailableWidth = (timeX - x - dp(8f)).coerceAtLeast(0f)
+        }
 
         // Interpolate title Y position from compact vertical center to expanded header position
         val compactY = rect.centerY() + text.textSize / 3f
@@ -562,32 +610,80 @@ class IslandView @JvmOverloads constructor(
             dismissHitRect.setEmpty()
         }
 
-        // Subtitle fades in smoothly during expansion
-        if (curExpandedAlpha > 0.05f && content.subtitle.isNotBlank()) {
+        // ================= TIMER EXPANDED VIEW =================
+        if (curExpandedAlpha > 0.05f && content.type == IslandContentType.TIMER) {
+            val timeString = if (content.targetEndTime != null && content.getRemainingSeconds() <= 0L) {
+                "Time's Up!"
+            } else {
+                content.getFormattedRemainingTime()
+            }
+
+            timerDigitsPaint.alpha = (curExpandedAlpha * 255).toInt().coerceIn(0, 255)
+            if (content.targetEndTime != null && content.getRemainingSeconds() <= 0L) {
+                timerDigitsPaint.color = Color.parseColor("#FF9500")
+            } else {
+                timerDigitsPaint.color = Color.WHITE
+            }
+
+            // Big centered digital countdown
+            val timeY = rect.top + pad + text.textSize + dp(40f)
+            canvas.drawText(timeString, rect.centerX(), timeY, timerDigitsPaint)
+
+            // Subtitle caption below countdown
+            val subCaption = if (content.targetEndTime != null && content.getRemainingSeconds() <= 0L) {
+                "Timer Complete"
+            } else if (content.subtitle.isNotBlank() && !content.subtitle.contains(":")) {
+                content.subtitle
+            } else {
+                "Countdown Timer"
+            }
+            subText.alpha = (curExpandedAlpha * 170).toInt().coerceIn(0, 170)
+            val subCaptionW = subText.measureText(subCaption)
+            canvas.drawText(subCaption, rect.centerX() - subCaptionW / 2f, timeY + dp(16f), subText)
+
+            // Draining progress bar
+            val dynProgress = content.getDynamicProgress() ?: 1f
+            val pAlpha = (curExpandedAlpha * 255).toInt().coerceIn(0, 255)
+            val bgAlpha = (curExpandedAlpha * 70).toInt().coerceIn(0, 70)
+            progressBg.alpha = bgAlpha
+            accent.alpha = pAlpha
+
+            val barY = rect.bottom - dp(14f)
+            val barRight = rect.right - pad
+            if (barRight > x) {
+                canvas.drawRoundRect(x, barY, barRight, barY + dp(3.5f), dp(2f), dp(2f), progressBg)
+                canvas.drawRoundRect(x, barY, x + (barRight - x) * dynProgress.coerceIn(0f, 1f), barY + dp(3.5f), dp(2f), dp(2f), accent)
+            }
+        }
+
+        // ================= STANDARD NOTIFICATION SUBTITLE =================
+        if (curExpandedAlpha > 0.05f && content.type != IslandContentType.TIMER && content.subtitle.isNotBlank()) {
             val subAlpha = (curExpandedAlpha * 180).toInt().coerceIn(0, 180)
             subText.alpha = subAlpha
             val subY = expandedY + dp(18f)
             canvas.drawText(elide(content.subtitle, subText, maxAvailableWidth), x, subY, subText)
         }
 
-        // Progress bar for media or timers
-        content.progress?.let { p ->
-            if (curExpandedAlpha > 0.05f) {
-                val pAlpha = (curExpandedAlpha * 255).toInt().coerceIn(0, 255)
-                val bgAlpha = (curExpandedAlpha * 70).toInt().coerceIn(0, 70)
-                progressBg.alpha = bgAlpha
-                accent.alpha = pAlpha
+        // Progress bar for non-timer media
+        if (content.type != IslandContentType.TIMER) {
+            content.progress?.let { p ->
+                if (curExpandedAlpha > 0.05f) {
+                    val pAlpha = (curExpandedAlpha * 255).toInt().coerceIn(0, 255)
+                    val bgAlpha = (curExpandedAlpha * 70).toInt().coerceIn(0, 70)
+                    progressBg.alpha = bgAlpha
+                    accent.alpha = pAlpha
 
-                val y = if (content.type == IslandContentType.MEDIA) rect.bottom - dp(48f) else rect.bottom - dp(14f)
-                val right = rect.right - pad
-                if (right > x) {
-                    canvas.drawRoundRect(x, y, right, y + dp(3f), dp(2f), dp(2f), progressBg)
-                    canvas.drawRoundRect(x, y, x + (right - x) * p.coerceIn(0f, 1f), y + dp(3f), dp(2f), dp(2f), accent)
+                    val y = if (content.type == IslandContentType.MEDIA) rect.bottom - dp(48f) else rect.bottom - dp(14f)
+                    val right = rect.right - pad
+                    if (right > x) {
+                        canvas.drawRoundRect(x, y, right, y + dp(3f), dp(2f), dp(2f), progressBg)
+                        canvas.drawRoundRect(x, y, x + (right - x) * p.coerceIn(0f, 1f), y + dp(3f), dp(2f), dp(2f), accent)
+                    }
                 }
             }
         }
 
-        // Media Control Buttons (Previous ⏮, Play/Pause ⏯, Next ⏭)
+        // ================= MEDIA CONTROLS =================
         if (curExpandedAlpha > 0.05f && content.type == IslandContentType.MEDIA) {
             val btnBarY = rect.bottom - dp(24f)
             val centerX = rect.centerX()
@@ -607,7 +703,6 @@ class IslandView @JvmOverloads constructor(
 
             playPauseIconPaint.alpha = (curExpandedAlpha * 255).toInt().coerceIn(0, 255)
             if (content.isPlaying) {
-                // Pause Bars
                 val barW = dp(3.5f)
                 val barH = dp(11f)
                 val gap = dp(4f)
@@ -628,7 +723,6 @@ class IslandView @JvmOverloads constructor(
                     playPauseIconPaint
                 )
             } else {
-                // Play Triangle
                 val triPath = Path().apply {
                     moveTo(centerX - dp(4f), btnBarY - dp(6.5f))
                     lineTo(centerX + dp(7f), btnBarY)
@@ -648,7 +742,6 @@ class IslandView @JvmOverloads constructor(
             )
             mediaIconPaint.alpha = (curExpandedAlpha * 220).toInt().coerceIn(0, 220)
 
-            // Vertical line on left
             canvas.drawRoundRect(
                 prevX - dp(7.5f),
                 btnBarY - dp(6f),
@@ -657,7 +750,6 @@ class IslandView @JvmOverloads constructor(
                 dp(1f), dp(1f),
                 mediaIconPaint
             )
-            // Triangle pointing left
             val prevPath = Path().apply {
                 moveTo(prevX + dp(6.5f), btnBarY - dp(6.5f))
                 lineTo(prevX - dp(4.5f), btnBarY)
@@ -675,7 +767,6 @@ class IslandView @JvmOverloads constructor(
                 btnBarY + dp(24f)
             )
 
-            // Vertical line on right
             canvas.drawRoundRect(
                 nextX + dp(5.5f),
                 btnBarY - dp(6f),
@@ -684,7 +775,6 @@ class IslandView @JvmOverloads constructor(
                 dp(1f), dp(1f),
                 mediaIconPaint
             )
-            // Triangle pointing right
             val nextPath = Path().apply {
                 moveTo(nextX - dp(6.5f), btnBarY - dp(6.5f))
                 lineTo(nextX + dp(4.5f), btnBarY)
@@ -725,6 +815,7 @@ class IslandView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         cancelAutoCollapse()
+        removeCallbacks(timerTicker)
         listOf(widthSpring, heightSpring, radiusSpring, expandedAlphaSpring, compactAlphaSpring).forEach { it.cancel() }
         tracker?.recycle()
         tracker = null

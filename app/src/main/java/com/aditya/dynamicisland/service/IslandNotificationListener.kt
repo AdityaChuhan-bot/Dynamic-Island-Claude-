@@ -26,8 +26,8 @@ import kotlinx.coroutines.flow.onEach
 
 /**
  * NotificationListenerService that captures incoming system notifications,
- * detects music playback notifications, binds to MediaControllers for real-time
- * transport controls (Play/Pause/Skip), and manages dismissals.
+ * detects music playback notifications, detects active countdown timers,
+ * binds to MediaControllers for real-time controls, and manages dismissals.
  */
 class IslandNotificationListener : NotificationListenerService() {
 
@@ -115,7 +115,6 @@ class IslandNotificationListener : NotificationListenerService() {
                 sbn.packageName.contains("podcast")
 
         if (isMediaSessionTokenPresent || (isMediaCategory && isMediaPackage)) {
-            // Extract media session token
             val token = runCatching {
                 @Suppress("DEPRECATION")
                 notif.extras.getParcelable<MediaSession.Token>(Notification.EXTRA_MEDIA_SESSION)
@@ -128,7 +127,6 @@ class IslandNotificationListener : NotificationListenerService() {
                 refreshMediaSession()
             }
 
-            // Read metadata from media controller if available
             val controller = observedController ?: findActiveMediaController()
             if (controller != null) {
                 val metadata = controller.metadata
@@ -164,7 +162,7 @@ class IslandNotificationListener : NotificationListenerService() {
             }
         }
 
-        // 4. Regular notification processing
+        // 4. Extract text fields
         val isGroupSummary = (notif.flags and Notification.FLAG_GROUP_SUMMARY) != 0
 
         val rawTitle = notif.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
@@ -181,7 +179,6 @@ class IslandNotificationListener : NotificationListenerService() {
             else -> ""
         }
 
-        // Skip completely empty background notifications
         if (rawTitle.isBlank() && rawBody.isBlank()) {
             refreshMediaSession()
             return
@@ -192,23 +189,58 @@ class IslandNotificationListener : NotificationListenerService() {
         val appName = resolveAppName(sbn.packageName)
         val displayTitle = if (rawTitle.isNotBlank()) rawTitle else appName
         val displaySubtitle = if (rawBody.isNotBlank()) rawBody else appName
-
-        // 5. Determine category & type
         val isOngoing = (notif.flags and Notification.FLAG_ONGOING_EVENT) != 0
-        val isCall = notif.category == Notification.CATEGORY_CALL
-        val isTimer = notif.category == Notification.CATEGORY_ALARM ||
-                notif.category == Notification.CATEGORY_STOPWATCH ||
-                sbn.packageName.contains("clock") ||
-                sbn.packageName.contains("timer")
 
-        val type = when {
-            isCall -> IslandContentType.CALL
-            isTimer -> IslandContentType.TIMER
-            else -> IslandContentType.GENERIC_NOTIFICATION
+        // 5. Check if this is an active countdown timer or stopwatch
+        val isCountDownChronometer = notif.extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN, false)
+        val isTimerCategory = notif.category == Notification.CATEGORY_ALARM ||
+                notif.category == Notification.CATEGORY_STOPWATCH
+        val isTimerPackage = sbn.packageName.contains("clock") ||
+                sbn.packageName.contains("timer") ||
+                sbn.packageName.contains("deskclock")
+
+        if (isCountDownChronometer || isTimerCategory || (isTimerPackage && isOngoing)) {
+            val (targetEndTime, totalSecs) = extractTimerCountdown(notif, "$rawTitle $rawBody $ticker")
+
+            val timerContent = IslandContent(
+                type = IslandContentType.TIMER,
+                title = if (rawTitle.isNotBlank() && !rawTitle.contains(":")) rawTitle else "Timer",
+                subtitle = if (rawBody.isNotBlank()) rawBody else "Countdown",
+                isOngoing = true,
+                packageName = sbn.packageName,
+                appName = appName,
+                intent = notif.contentIntent,
+                notificationKey = sbn.key,
+                timestamp = sbn.postTime,
+                targetEndTime = targetEndTime,
+                totalDurationSeconds = totalSecs
+            )
+
+            IslandRepository.update(timerContent, autoExpand = true)
+            return
         }
 
+        // 6. Incoming Phone Call
+        val isCall = notif.category == Notification.CATEGORY_CALL
+        if (isCall) {
+            val callContent = IslandContent(
+                type = IslandContentType.CALL,
+                title = displayTitle,
+                subtitle = displaySubtitle,
+                isOngoing = isOngoing,
+                packageName = sbn.packageName,
+                appName = appName,
+                intent = notif.contentIntent,
+                notificationKey = sbn.key,
+                timestamp = sbn.postTime
+            )
+            IslandRepository.update(callContent, autoExpand = true)
+            return
+        }
+
+        // 7. Generic Notification
         val content = IslandContent(
-            type = type,
+            type = IslandContentType.GENERIC_NOTIFICATION,
             title = displayTitle,
             subtitle = displaySubtitle,
             isOngoing = isOngoing,
@@ -219,15 +251,49 @@ class IslandNotificationListener : NotificationListenerService() {
             timestamp = sbn.postTime
         )
 
-        // 6. Push to IslandRepository and trigger automatic expansion for new alerts!
         IslandRepository.update(content, autoExpand = true)
+    }
+
+    private fun extractTimerCountdown(notif: Notification, textToSearch: String): Pair<Long?, Long?> {
+        var targetEndTime: Long? = null
+        var totalDurationSeconds: Long? = null
+
+        // 1. Check if 'when' contains future target epoch millis
+        if (notif.`when` > System.currentTimeMillis()) {
+            val diffSecs = (notif.`when` - System.currentTimeMillis()) / 1000L
+            if (diffSecs in 1..86400) {
+                targetEndTime = notif.`when`
+                totalDurationSeconds = diffSecs
+            }
+        }
+
+        // 2. Fallback: Parse digits like MM:SS or HH:MM:SS from text
+        if (targetEndTime == null) {
+            val timeRegex = Regex("""(\d{1,2}):(\d{2})(?::(\d{2}))?""")
+            val match = timeRegex.find(textToSearch)
+            if (match != null) {
+                val parts = match.value.split(":")
+                val secs = when (parts.size) {
+                    3 -> (parts[0].toLongOrNull() ?: 0L) * 3600L +
+                            (parts[1].toLongOrNull() ?: 0L) * 60L +
+                            (parts[2].toLongOrNull() ?: 0L)
+                    2 -> (parts[0].toLongOrNull() ?: 0L) * 60L + (parts[1].toLongOrNull() ?: 0L)
+                    else -> 0L
+                }
+                if (secs > 0) {
+                    targetEndTime = System.currentTimeMillis() + secs * 1000L
+                    totalDurationSeconds = secs
+                }
+            }
+        }
+
+        return targetEndTime to totalDurationSeconds
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         if (sbn == null || sbn.packageName == packageName) return
 
         val current = IslandRepository.content.value
-        // If the dismissed notification is currently being displayed on the island
         if (current.notificationKey == sbn.key || (current.packageName == sbn.packageName && current.type != IslandContentType.MEDIA)) {
             refreshMediaSession()
             refreshFromActiveNotifications()
@@ -342,22 +408,29 @@ class IslandNotificationListener : NotificationListenerService() {
         // Priority 3: Active timer or stopwatch
         val timer = active.firstOrNull {
             it.packageName != packageName &&
-                    (it.packageName.contains("deskclock") || it.packageName.contains("clock")) &&
+                    (it.packageName.contains("deskclock") || it.packageName.contains("clock") || it.packageName.contains("timer")) &&
                     it.isOngoing
         }
         if (timer != null) {
-            val extras = timer.notification.extras
-            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "Timer"
-            val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+            val notif = timer.notification
+            val extras = notif.extras
+            val rawTitle = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+            val rawText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+            val ticker = notif.tickerText?.toString().orEmpty()
+            val (targetEndTime, totalSecs) = extractTimerCountdown(notif, "$rawTitle $rawText $ticker")
+
             IslandRepository.update(
                 IslandContent(
                     type = IslandContentType.TIMER,
-                    title = title,
-                    subtitle = text,
+                    title = if (rawTitle.isNotBlank() && !rawTitle.contains(":")) rawTitle else "Timer",
+                    subtitle = if (rawText.isNotBlank()) rawText else "Countdown",
                     isOngoing = true,
                     packageName = timer.packageName,
-                    intent = timer.notification.contentIntent,
-                    notificationKey = timer.key
+                    appName = resolveAppName(timer.packageName),
+                    intent = notif.contentIntent,
+                    notificationKey = timer.key,
+                    targetEndTime = targetEndTime,
+                    totalDurationSeconds = totalSecs
                 ),
                 autoExpand = false
             )
