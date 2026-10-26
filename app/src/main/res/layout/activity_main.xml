@@ -1,49 +1,203 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp"
+    android:fillViewport="true"
     android:background="@color/bg_dark">
 
-    <TextView
-        android:id="@+id/tvTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/app_name"
-        android:textColor="@color/text_primary"
-        android:textSize="26sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/status_ready"
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp"
-        android:layout_marginBottom="32dp" />
-
-    <Button
-        android:id="@+id/btnGrantOverlay"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/grant_overlay"
-        android:layout_marginBottom="12dp" />
+        android:orientation="vertical"
+        android:padding="20dp">
 
-    <Button
-        android:id="@+id/btnGrantListener"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/grant_notifications"
-        android:layout_marginBottom="24dp" />
+        <!-- Header -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@color/text_primary"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp" />
 
-    <Button
-        android:id="@+id/btnToggleIsland"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/start_island" />
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Persistent Floating WindowManager Overlay"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="16dp" />
 
-</LinearLayout>
+        <!-- Status Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:strokeWidth="1dp"
+            app:strokeColor="#33FFFFFF"
+            android:layout_marginBottom="20dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SERVICE STATUS"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.08"
+                    android:textStyle="bold"
+                    android:textColor="@color/island_accent" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/status_ready"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Permissions Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/section_permissions"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnGrantOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="@string/grant_overlay"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnGrantListener"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="@string/grant_notifications"
+            app:cornerRadius="12dp"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Start / Stop Button -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/section_island_control"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnToggleIsland"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/start_island"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:cornerRadius="14dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Event Simulations -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/section_test_simulations"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:strokeWidth="1dp"
+            app:strokeColor="#22FFFFFF"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <Button
+                    android:id="@+id/btnSimulateMusic"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="@string/test_music"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:textColor="@color/island_accent"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnSimulateCall"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="@string/test_call"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:textColor="#34C759"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnSimulateNotification"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="@string/test_incoming_notification"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:textColor="#AF52DE"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnSimulateTimer"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="@string/test_timer"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:textColor="#FF9500"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnToggleExpand"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="@string/test_toggle_expand"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_marginBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnClearContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="@string/test_clear"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</ScrollView>

@@ -7,5 +7,14 @@
     <string name="status_ready">Ready to start</string>
     <string name="status_running">Island is running</string>
     <string name="status_missing_overlay">Overlay permission required</string>
-    <string name="status_missing_listener">Notification access required</string>
+    <string name="status_missing_listener">Notification access recommended</string>
+    <string name="section_permissions">Permissions</string>
+    <string name="section_island_control">Island Service Control</string>
+    <string name="section_test_simulations">Simulate Island Events</string>
+    <string name="test_music">Simulate Music (Now Playing)</string>
+    <string name="test_call">Simulate Incoming Call</string>
+    <string name="test_timer">Simulate Countdown Timer</string>
+    <string name="test_incoming_notification">Simulate Incoming Notification (Auto-Expand)</string>
+    <string name="test_clear">Clear Content (Idle Pill)</string>
+    <string name="test_toggle_expand">Toggle Expand / Collapse</string>
 </resources>
